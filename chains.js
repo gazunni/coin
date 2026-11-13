@@ -1,4 +1,4 @@
-/* chains.js (Chainwolf v0.4.1)
+/* chains.js (Chainwolf v0.4.2)
    One adapter per network. Every lookup returns a "view" object the page renders,
    so app.js never needs to know how a given chain works. */
 (function (root) {

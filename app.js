@@ -1,4 +1,4 @@
-/* app.js (Chainwolf v0.4.1): page logic. Network specifics live in chains.js. */
+/* app.js (Chainwolf v0.4.2): page logic. Network specifics live in chains.js. */
 (function () {
   'use strict';
   var C = window.Chains;
@@ -135,7 +135,7 @@
     $('pChg').textContent = pr === null || g === null ? '' : chgText(g) + ' 24h';
     $('pChg').className = 'pchg' + (pr === null || g === null ? '' : (g >= 0 ? ' up' : ' down'));
     var notes = [];
-    if (pr !== null) notes.push('today\'s price');
+    if (pr !== null) notes.push('live');
     if (P.delayed()) notes.push('delayed');
     if (fiat === 'CAD' && c === 'USD') notes.push('CAD rate unavailable');
     $('pNote').textContent = notes.join(', ');
@@ -147,6 +147,7 @@
     panel.hidden = false;
     box.textContent = '';
     var c = eff();
+    panel.querySelector('summary').textContent = 'All prices (' + c + ')';
     C.NETS.forEach(function (n) {
       var b = el('button', 'prow'); b.type = 'button';
       b.setAttribute('aria-current', n.id === selected ? 'true' : 'false');

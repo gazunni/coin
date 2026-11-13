@@ -1,4 +1,4 @@
-/* app.js (Chainwolf v0.3.0): page logic. Network specifics live in chains.js. */
+/* app.js (Chainwolf v0.3.1): page logic. Network specifics live in chains.js. */
 (function () {
   'use strict';
   var C = window.Chains;
@@ -15,10 +15,10 @@
 
   /* ---------- selected network ---------- */
   var selected = 'bitcoin';
-  try { var s0 = localStorage.getItem(SEL_KEY); if (s0 && C.byId[s0]) selected = s0; } catch (e) {}
+  try { var s0 = localStorage.getItem(SEL_KEY); if (s0 && C.byId[s0]) selected = s0; } catch (e) { /* storage blocked: keep the default network */ }
   function setSelected(id) {
     selected = id;
-    try { localStorage.setItem(SEL_KEY, id); } catch (e) {}
+    try { localStorage.setItem(SEL_KEY, id); } catch (e) { /* storage blocked: the choice just is not remembered */ }
     renderNets();
   }
   function renderNets() {
@@ -41,7 +41,7 @@
     try {
       if (!actx) { var A = window.AudioContext || window.webkitAudioContext; if (A) actx = new A(); }
       if (actx && actx.state === 'suspended') actx.resume();
-    } catch (e) {}
+    } catch (e) { /* audio unavailable: skip the chime */ }
   }
   function chime() {
     try {
@@ -58,7 +58,7 @@
         });
       }
       if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
-    } catch (e) {}
+    } catch (e) { /* audio or vibration unavailable: skip the alert */ }
   }
   function resetTitle() { document.title = DEFTITLE; }
   document.addEventListener('visibilitychange', function () { if (!document.hidden) resetTitle(); });
@@ -215,7 +215,7 @@
     cur = { net: d.net, kind: d.kind, id: d.id };
     prevPending = null; backAddr = back || null; curLast = null;
     $('wlabel').value = '';
-    try { history.replaceState(null, '', '#' + d.net + '/' + d.id); } catch (e) {}
+    try { history.replaceState(null, '', '#' + d.net + '/' + d.id); } catch (e) { /* the address-bar update is cosmetic */ }
     run(cur, false);
   }
 
@@ -257,7 +257,7 @@
     clearTimeout(timer); cur = null; prevPending = null; backAddr = null; curLast = null;
     $('txid').value = ''; syncClear(); clearError(); hideResult(); resetTitle();
     $('go').disabled = false;
-    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* the address-bar update is cosmetic */ }
   }
   function syncClear() { $('clr').hidden = !$('txid').value; }
 
@@ -347,7 +347,7 @@
       var ta = document.createElement('textarea');
       ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.focus(); ta.select();
-      try { document.execCommand('copy'); ok(); } catch (e) {}
+      try { document.execCommand('copy'); ok(); } catch (e) { /* clipboard blocked: nothing more to try */ }
       document.body.removeChild(ta);
     }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, fallback);

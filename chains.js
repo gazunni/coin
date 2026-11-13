@@ -1,4 +1,4 @@
-/* chains.js (Chainwolf v0.3.0)
+/* chains.js (Chainwolf v0.3.1)
    One adapter per network. Every lookup returns a "view" object the page renders,
    so app.js never needs to know how a given chain works. */
 (function (root) {
@@ -101,7 +101,6 @@
   /* ---------- base58 / sha256 (Tron addresses) ---------- */
   var ALPH = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   function hexToBytes(h) { var a = new Uint8Array(h.length / 2); for (var i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16); return a; }
-  function bytesToHex(b) { var s = ''; for (var i = 0; i < b.length; i++) s += ('0' + b[i].toString(16)).slice(-2); return s; }
   function b58enc(bytes) {
     var n = 0n, i;
     for (i = 0; i < bytes.length; i++) n = n * 256n + BigInt(bytes[i]);
@@ -154,7 +153,7 @@
       var tx = await httpJSON(api.base + '/tx/' + id);
       var tip = await btcTip(api), blocks = null;
       if (api.name === 'mempool.space' && !tx.status.confirmed) {
-        try { blocks = await httpJSON(api.base + '/v1/fees/mempool-blocks'); } catch (e) {}
+        try { blocks = await httpJSON(api.base + '/v1/fees/mempool-blocks'); } catch (e) { /* fee estimate is optional */ }
       }
       return { api: api, tx: tx, tip: tip, blocks: blocks };
     });
@@ -284,7 +283,7 @@
       rcpt = await ethRpc('eth_getTransactionReceipt', [id]);
       if (rcpt) {
         blk = await ethRpc('eth_getBlockByNumber', [tx.blockNumber, false]);
-        try { var fb = await ethRpc('eth_getBlockByNumber', ['finalized', false]); finNum = fb ? parseInt(fb.number, 16) : null; } catch (e) {}
+        try { var fb = await ethRpc('eth_getBlockByNumber', ['finalized', false]); finNum = fb ? parseInt(fb.number, 16) : null; } catch (e) { /* finality check is optional: falls back to the confirmation count */ }
       } else mined = false;
     }
     var outs = [];
@@ -351,7 +350,7 @@
     var s = st && st.value && st.value[0];
     if (!s) throw NF();
     var tx = null;
-    try { tx = await solRpc('getTransaction', [id, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }]); } catch (e) {}
+    try { tx = await solRpc('getTransaction', [id, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }]); } catch (e) { /* transaction details are optional: the status alone is enough */ }
     var level = s.confirmationStatus || 'processed', failed = !!s.err, outs = [], rows = [];
     if (tx && tx.meta) {
       var keys = tx.transaction.message.accountKeys.map(function (k) { return typeof k === 'string' ? k : k.pubkey; });

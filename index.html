@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chainwolf</title>
-<meta name="app-version" content="0.3.1">
+<meta name="app-version" content="0.4.1">
 <meta name="theme-color" content="#070b09">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=0.3.1">
+<link rel="stylesheet" href="style.css?v=0.4.1">
 </head>
 <body>
 <main>
   <header class="brand">
-    <img src="logo.png?v=0.3.1" alt="Generify Data Intelligence" width="64" height="64">
+    <img src="logo.png?v=0.4.1" alt="Generify Data Intelligence" width="64" height="64">
     <div>
       <h1>Chainwolf</h1>
       <p class="sub">Check a payment or wallet on the network it was sent on.</p>
@@ -22,51 +22,84 @@
 
   <div class="nets" id="nets" role="group" aria-label="Network"></div>
 
-  <form id="f" autocomplete="off">
-    <div class="field">
-      <input id="txid" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
-             placeholder="Transaction ID or address" aria-label="Transaction ID or wallet address">
-      <button id="clr" class="icon" type="button" aria-label="Clear" hidden>&times;</button>
-    </div>
-    <button id="go" type="submit">Check</button>
-  </form>
+  <div class="layout">
+    <div class="mainc">
+      <div class="pstrip" id="pstrip" hidden>
+        <div class="pleft">
+          <div class="pname" id="pName"></div>
+          <div class="pprice" id="pPrice"></div>
+        </div>
+        <div class="pright">
+          <span class="pchg" id="pChg"></span>
+          <span class="pnote" id="pNote"></span>
+          <button class="mini" id="curBtn" type="button" aria-label="Switch between CAD and USD">CAD</button>
+        </div>
+      </div>
 
-  <div id="msg" role="alert" hidden></div>
+      <form id="f" autocomplete="off">
+        <div class="field">
+          <input id="txid" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
+                 placeholder="Transaction ID or address" aria-label="Transaction ID or wallet address">
+          <button id="clr" class="icon" type="button" aria-label="Clear" hidden>&times;</button>
+        </div>
+        <button id="go" type="submit">Check</button>
+      </form>
 
-  <section id="result" aria-live="polite" hidden>
-    <a href="#" id="back" hidden>&larr; Back to address</a>
-    <div class="idrow">
-      <span class="kind" id="kind"></span>
-      <code id="idText"></code>
-      <button class="mini" id="copyBtn" type="button">Copy</button>
-      <a class="mini" id="ext" target="_blank" rel="noopener noreferrer">Open explorer</a>
-    </div>
-    <div id="status" class="status">
-      <div class="big" id="sBig"></div>
-      <div class="small" id="sSmall"></div>
-      <div class="pips" id="pips" hidden><span></span><span></span><span></span><span></span><span></span><span></span></div>
-      <div class="note" id="sNote" hidden></div>
-    </div>
-    <div class="watchbar" id="watchbar">
-      <div class="field" id="wfield"><input id="wlabel" type="text" maxlength="40" placeholder="Label (optional)" aria-label="Watchlist label"></div>
-      <span class="state" id="wstate" hidden>On your watchlist</span>
-      <button class="mini" id="wbtn" type="button">Watch</button>
-    </div>
-    <dl id="rows"></dl>
-    <div id="outs" hidden><h2 id="outsTitle">Outputs</h2><div id="outitems"></div></div>
-    <div id="txlist" hidden><h2>Recent transactions</h2><div id="txitems"></div></div>
-    <p class="foot" id="foot"></p>
-  </section>
+      <div id="msg" role="alert" hidden></div>
 
-  <section id="watch" hidden>
-    <div class="whead"><h2>Watchlist</h2><button class="mini" id="wrefresh" type="button">Refresh</button></div>
-    <div id="witems"></div>
-    <p id="wnote"></p>
-  </section>
+      <section id="result" aria-live="polite" hidden>
+        <a href="#" id="back" hidden>&larr; Back to address</a>
+        <div class="rcols" id="rcols">
+          <div class="rcol" id="rcolA">
+            <div class="idrow">
+              <span class="kind" id="kind"></span>
+              <code id="idText"></code>
+              <button class="mini" id="copyBtn" type="button">Copy</button>
+              <a class="mini" id="ext" target="_blank" rel="noopener noreferrer">Open explorer</a>
+            </div>
+            <div id="status" class="status">
+              <div class="big" id="sBig"></div>
+              <div class="fx" id="sFx" hidden></div>
+              <div class="small" id="sSmall"></div>
+              <div class="pips" id="pips" hidden><span></span><span></span><span></span><span></span><span></span><span></span></div>
+              <div class="note" id="sNote" hidden></div>
+            </div>
+            <div class="watchbar" id="watchbar">
+              <div class="field" id="wfield"><input id="wlabel" type="text" maxlength="40" placeholder="Label (optional)" aria-label="Watchlist label"></div>
+              <span class="state" id="wstate" hidden>On your watchlist</span>
+              <button class="mini" id="wbtn" type="button">Watch</button>
+            </div>
+            <dl id="rows"></dl>
+          </div>
+          <div class="rcol" id="rcolB">
+            <div id="outs" hidden><h2 id="outsTitle">Outputs</h2><div id="outitems"></div></div>
+            <div id="txlist" hidden><h2>Recent transactions</h2><div id="txitems"></div></div>
+          </div>
+        </div>
+        <p class="foot" id="foot"></p>
+        <p class="foot" id="fxNote" hidden>Dollar values use today&rsquo;s price, not the price when the payment was sent.</p>
+      </section>
+    </div>
 
-  <p class="ver">Chainwolf v0.3.1 by Generify Data Intelligence</p>
+    <aside class="sidec">
+      <details class="panel" id="allp" hidden>
+        <summary>All prices</summary>
+        <div id="pitems"></div>
+      </details>
+
+      <section id="watch" hidden>
+        <div class="whead"><h2>Watchlist</h2><button class="mini" id="wrefresh" type="button">Refresh</button></div>
+        <div id="witems"></div>
+        <p id="wnote"></p>
+      </section>
+    </aside>
+  </div>
+
+  <p class="ver">Chainwolf v0.4.1 by Generify Data Intelligence. Prices from FreeCryptoAPI, CAD converted at today&rsquo;s exchange rate.</p>
 </main>
-<script src="chains.js?v=0.3.1"></script>
-<script src="app.js?v=0.3.1"></script>
+<script src="config.js?v=0.4.1"></script>
+<script src="chains.js?v=0.4.1"></script>
+<script src="prices.js?v=0.4.1"></script>
+<script src="app.js?v=0.4.1"></script>
 </body>
 </html>

@@ -1,9 +1,10 @@
-/* app.js (Chainwolf v0.3.1): page logic. Network specifics live in chains.js. */
+/* app.js (Chainwolf v0.4.1): page logic. Network specifics live in chains.js. */
 (function () {
   'use strict';
   var C = window.Chains;
+  var P = window.Prices;
   var WATCH_TICK = 60000, MAX_WATCH = 25, KEEP_MS = 7 * 86400000;
-  var KEY = 'btcwatch.v1', SEL_KEY = 'chainwolf.net', DEFTITLE = 'Chainwolf';
+  var KEY = 'btcwatch.v1', SEL_KEY = 'chainwolf.net', CUR_KEY = 'chainwolf.cur', DEFTITLE = 'Chainwolf';
 
   var $ = function (id) { return document.getElementById(id); };
   function el(tag, cls, text) {
@@ -19,18 +20,19 @@
   function setSelected(id) {
     selected = id;
     try { localStorage.setItem(SEL_KEY, id); } catch (e) { /* storage blocked: the choice just is not remembered */ }
-    renderNets();
+    renderNets(); renderStrip(); renderAllPrices();
+  }
+  function pickNet(id) {
+    setSelected(id);
+    var raw = $('txid').value.trim();
+    if (raw) start(raw, null, id, true);
   }
   function renderNets() {
     var box = $('nets'); box.textContent = '';
     C.NETS.forEach(function (n) {
       var b = el('button', 'net', n.name); b.type = 'button';
       b.setAttribute('aria-pressed', n.id === selected ? 'true' : 'false');
-      b.addEventListener('click', function () {
-        setSelected(n.id);
-        var raw = $('txid').value.trim();
-        if (raw) start(raw, null, n.id, true);
-      });
+      b.addEventListener('click', function () { pickNet(n.id); });
       box.appendChild(b);
     });
   }
@@ -103,12 +105,74 @@
   function clearError() { $('msg').hidden = true; }
   function hideResult() { $('result').hidden = true; }
 
+  /* ---------- prices ---------- */
+  var fiat = 'CAD';
+  try { var f0 = localStorage.getItem(CUR_KEY); if (f0 === 'USD' || f0 === 'CAD') fiat = f0; } catch (e) { /* storage blocked: keep CAD */ }
+  function eff() { return fiat === 'CAD' && P.has() && P.rate('CAD') === null ? 'USD' : fiat; }
+  function addFx(parent, text) {
+    var d = el('div', 'fx'); d.dataset.amt = text; d.hidden = true;
+    parent.appendChild(d);
+    return d;
+  }
+  function applyFiat() {
+    var c = eff(), list = document.querySelectorAll('.fx'), any = false;
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i], t = n.dataset.amt ? P.fiatText(n.dataset.amt, c) : '';
+      n.textContent = t; n.hidden = !t;
+      if (t) any = true;
+    }
+    $('fxNote').hidden = !any;
+  }
+  function chgText(g) { return (g >= 0 ? '▲ ' : '▼ ') + Math.abs(g).toFixed(2) + '%'; }
+  function renderStrip() {
+    var strip = $('pstrip');
+    if (!P.enabled()) { strip.hidden = true; return; }
+    strip.hidden = false;
+    var net = C.byId[selected], c = eff();
+    var pr = P.has() ? P.price(net.sym, c) : null, g = P.has() ? P.change(net.sym) : null;
+    $('pName').textContent = net.name + ' (' + net.sym + ')';
+    $('pPrice').textContent = pr === null ? (P.failed() ? 'Price unavailable' : 'Loading price…') : P.priceText(pr, c) + ' ' + c;
+    $('pChg').textContent = pr === null || g === null ? '' : chgText(g) + ' 24h';
+    $('pChg').className = 'pchg' + (pr === null || g === null ? '' : (g >= 0 ? ' up' : ' down'));
+    var notes = [];
+    if (pr !== null) notes.push('today\'s price');
+    if (P.delayed()) notes.push('delayed');
+    if (fiat === 'CAD' && c === 'USD') notes.push('CAD rate unavailable');
+    $('pNote').textContent = notes.join(', ');
+    $('curBtn').textContent = c;
+  }
+  function renderAllPrices() {
+    var panel = $('allp'), box = $('pitems');
+    if (!P.enabled()) { panel.hidden = true; return; }
+    panel.hidden = false;
+    box.textContent = '';
+    var c = eff();
+    C.NETS.forEach(function (n) {
+      var b = el('button', 'prow'); b.type = 'button';
+      b.setAttribute('aria-current', n.id === selected ? 'true' : 'false');
+      var left = el('div', 'pl');
+      left.appendChild(el('div', 'pn', n.name));
+      left.appendChild(el('div', 'pm', n.sym));
+      var right = el('div', 'pv'), p = P.has() ? P.price(n.sym, c) : null, g = P.has() ? P.change(n.sym) : null;
+      right.appendChild(el('div', 'pp', p === null ? '–' : P.priceText(p, c)));
+      if (p !== null && g !== null) right.appendChild(el('div', 'pchg ' + (g >= 0 ? 'up' : 'down'), chgText(g)));
+      b.appendChild(left); b.appendChild(right);
+      b.addEventListener('click', function () { pickNet(n.id); });
+      box.appendChild(b);
+    });
+  }
+  function syncCols() {
+    $('rcols').className = 'rcols' + ($('outs').hidden && $('txlist').hidden ? ' solo' : '');
+  }
+
   /* ---------- rendering ---------- */
   function setRows(rows) {
     var dl = $('rows'); dl.textContent = '';
     (rows || []).forEach(function (r) {
       var d = el('div', 'row');
-      d.appendChild(el('dt', null, r[0])); d.appendChild(el('dd', null, r[1]));
+      var dd = el('dd', null, r[1]);
+      if (P.parseAmount(r[1])) addFx(dd, r[1]);
+      d.appendChild(el('dt', null, r[0])); d.appendChild(dd);
       dl.appendChild(d);
     });
     dl.hidden = !(rows && rows.length);
@@ -156,7 +220,7 @@
       left.appendChild(el('div', 'oaddr', o.addr || 'Unknown'));
       if (tag) left.appendChild(el('div', 'otag', tag));
       row.appendChild(left);
-      if (o.amount) row.appendChild(el('div', 'oamt', o.amount));
+      if (o.amount) { var amt = el('div', 'oamt', o.amount); addFx(amt, o.amount); row.appendChild(amt); }
       box.appendChild(row);
     });
     $('outs').hidden = !(outs && outs.length);
@@ -166,6 +230,7 @@
     $('txlist').hidden = true;
     $('status').className = 'status ' + (v.state === 'failed' ? 'bad' : v.state);
     $('sBig').textContent = v.big;
+    $('sFx').dataset.amt = '';
     $('sSmall').textContent = v.small;
     setPips(v.pips);
     setNote(v.note);
@@ -173,14 +238,16 @@
     renderOuts(v.outs, v.outsTitle);
     $('foot').textContent = checkedLine(v, c);
     curLast = { state: v.state === 'failed' ? 'failed' : (v.pending ? 'pending' : 'confirmed'), conf: v.conf, final: !!v.final };
+    syncCols(); applyFiat();
   }
   function renderAddr(v, c) {
     setHeader(c);
     $('outs').hidden = true;
     $('status').className = 'status ' + (v.pending ? 'pending' : 'done');
     $('sBig').textContent = v.big;
+    $('sFx').dataset.amt = v.big;
     $('sSmall').textContent = v.small;
-    setPips(null); setNote('');
+    setPips(null); setNote(v.note);
     setRows(v.rows);
     var list = $('txitems'); list.textContent = '';
     (v.txs || []).forEach(function (t) {
@@ -189,13 +256,14 @@
       left.appendChild(el('div', 't1' + (t.pend ? ' p' : ''), t.left1));
       left.appendChild(el('div', 't2', t.left2));
       b.appendChild(left);
-      if (t.amount) b.appendChild(el('div', 'tr' + (t.pos ? ' in' : ''), t.amount));
+      if (t.amount) { var tr = el('div', 'tr' + (t.pos ? ' in' : ''), t.amount); addFx(tr, t.amount); b.appendChild(tr); }
       b.addEventListener('click', function () { start(t.id, c.id, c.net); window.scrollTo(0, 0); });
       list.appendChild(b);
     });
     $('txlist').hidden = !(v.txs && v.txs.length);
     $('foot').textContent = checkedLine(v, c);
     curLast = { state: v.pending ? 'pending' : 'ok', bal: v.big };
+    syncCols(); applyFiat();
   }
 
   /* ---------- main flow ---------- */
@@ -362,12 +430,21 @@
   $('copyBtn').addEventListener('click', function () { if (cur) copyText(cur.id, this); });
   $('back').addEventListener('click', function (ev) { ev.preventDefault(); if (backAddr && cur) start(backAddr, null, cur.net); });
   $('wbtn').addEventListener('click', function () { if (cur && findW(cur.net, cur.id)) removeW(cur.net, cur.id); else addW(); });
+  $('curBtn').addEventListener('click', function () {
+    fiat = eff() === 'CAD' ? 'USD' : 'CAD';
+    try { localStorage.setItem(CUR_KEY, fiat); } catch (e) { /* storage blocked: the choice just is not remembered */ }
+    renderStrip(); renderAllPrices(); applyFiat();
+  });
   $('wrefresh').addEventListener('click', function () { unlockAudio(); refreshWatch(true); });
   setInterval(function () { if (!document.hidden) refreshWatch(false); }, WATCH_TICK);
 
   renderNets();
   renderWatch();
   refreshWatch(false);
+  if (window.matchMedia) $('allp').open = window.matchMedia('(min-width: 1000px)').matches;
+  P.onUpdate(function () { renderStrip(); renderAllPrices(); applyFiat(); });
+  renderStrip(); renderAllPrices();
+  P.start();
 
   /* open from a link: #network/id, or an older #id link */
   var h = (location.hash || '').replace(/^#/, '');

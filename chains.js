@@ -1,4 +1,4 @@
-/* chains.js (Chainwolf v0.3.1)
+/* chains.js (Chainwolf v0.4.1)
    One adapter per network. Every lookup returns a "view" object the page renders,
    so app.js never needs to know how a given chain works. */
 (function (root) {
@@ -328,12 +328,14 @@
     var keys = Object.keys(ETH_TOKENS);
     var res = await Promise.all([ethRpc('eth_getBalance', [addr, 'latest'])].concat(keys.map(function (c) {
       return ethRpc('eth_call', [{ to: c, data: '0x70a08231' + addr.slice(2).toLowerCase().padStart(64, '0') }, 'latest']);
-    })));
+    }), [ethRpc('eth_getCode', [addr, 'latest']).catch(function () { return '0x'; })]));
+    var code = res[keys.length + 1];
     var rows = [];
     keys.forEach(function (c, i) { rows.push([ETH_TOKENS[c].sym, fmt(res[i + 1], ETH_TOKENS[c].dec, ETH_TOKENS[c].sym)]); });
     return {
       pending: false, big: fmt(res[0], 18, 'ETH'), small: 'Balance. Token balances below.', rows: rows, txs: [],
       source: 'Ethereum public node',
+      note: code && code !== '0x' ? 'This address is a smart contract, not a personal wallet. The balances are what the contract itself holds.' : '',
       footNote: 'Transaction history for Ethereum addresses needs a paid indexer, so only balances are shown. Paste a transaction ID to check a payment.'
     };
   }
@@ -485,6 +487,14 @@
     'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t': { sym: 'USDT', dec: 6 },
     'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8': { sym: 'USDC', dec: 6 }
   };
+  var TRX_TYPES = {
+    TransferContract: 'TRX transfer', TransferAssetContract: 'Token transfer (TRC-10)',
+    TriggerSmartContract: 'Smart contract call', CreateSmartContract: 'Contract created'
+  };
+  function friendlyTronType(t) {
+    if (!t) return '';
+    return TRX_TYPES[t] || t.replace(/Contract$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+  }
   async function trxTx(id) {
     var t = await postJSON(TRX + '/wallet/gettransactionbyid', { value: id, visible: true });
     if (!t || !t.txID) throw NF();
@@ -505,7 +515,7 @@
         ? { addr: to, amount: fmt(amt, tk.dec, tk.sym), kind: 'payment', tag: 'Payment (' + tk.sym + ' on Tron)' }
         : { addr: to, amount: 'Unrecognized token', kind: 'other', tag: 'Token contract ' + short(val.contract_address) + ' is not USDT or USDC. Verify before trusting it.' });
     } else {
-      outs.push({ addr: val.contract_address || val.to_address || '', amount: '', kind: 'other', tag: (c && c.type) || 'Contract call' });
+      outs.push({ addr: val.contract_address || val.to_address || '', amount: '', kind: 'other', tag: friendlyTronType(c && c.type) || 'Contract call' });
     }
     var res = (t.ret && t.ret[0] && t.ret[0].contractRet) || (info && info.receipt && info.receipt.result) || '';
     var failed = !!bn && !!res && res !== 'SUCCESS';
@@ -526,8 +536,10 @@
     var res = await Promise.all([
       httpJSON(TRX + '/v1/accounts/' + addr),
       httpJSON(TRX + '/v1/accounts/' + addr + '/transactions?limit=25'),
-      httpJSON(TRX + '/v1/accounts/' + addr + '/transactions/trc20?limit=25')
+      httpJSON(TRX + '/v1/accounts/' + addr + '/transactions/trc20?limit=25'),
+      postJSON(TRX + '/wallet/getcontract', { value: addr, visible: true }).catch(function () { return null; })
     ]);
+    var ct = res[3], isContract = !!(ct && (ct.contract_address || ct.bytecode || ct.origin_address));
     var acct = res[0] && res[0].data && res[0].data[0], rows = [];
     var myHex = b58decHex(addr).slice(0, 42).toLowerCase();
     var items = [];
@@ -537,7 +549,7 @@
         if (String(vv.owner_address).toLowerCase() === myHex) n = -toBig(vv.amount);
         else if (String(vv.to_address).toLowerCase() === myHex) n = toBig(vv.amount);
       }
-      items.push({ id: t.txID, ts: t.block_timestamp || 0, left1: (c && c.type === 'TransferContract') ? 'TRX transfer' : ((c && c.type) || 'Transaction'),
+      items.push({ id: t.txID, ts: t.block_timestamp || 0, left1: friendlyTronType(c && c.type) || 'Transaction',
         amount: n === null ? '' : fmt(n, 6, 'TRX', true, 6), pos: n !== null && n > 0n });
     });
     ((res[2] && res[2].data) || []).forEach(function (t) {
@@ -556,7 +568,8 @@
     });
     return {
       pending: false, big: fmt((acct && acct.balance) || 0, 6, 'TRX', false, 6), small: acct ? 'Balance. Token balances below.' : 'This account has not been activated (never received anything).',
-      rows: rows, txs: list, source: 'TronGrid', footNote: 'Only confirmed activity is listed here.'
+      rows: rows, txs: list, source: 'TronGrid', footNote: 'Only confirmed activity is listed here.',
+      note: isContract ? 'This address is a smart contract' + (ct.name ? ' (' + ct.name + ')' : '') + ', not a personal wallet. The balances are what the contract itself holds, and the list shows calls made to it.' : ''
     };
   }
 

@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bitcoin checker</title>
+<meta name="app-version" content="0.2.1">
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d2327; --muted: #667076; --line: #dcdad2;
+    --pending: #b9660b; --pending-bg: #fbeed9;
+    --done: #17704f; --done-bg: #dcf1e7;
+    --bad: #a3322a; --bad-bg: #f8e0dd;
+    --accent: #1d2327;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181a; --panel: #1c2124; --ink: #e8e6df; --muted: #98a1a6; --line: #2f373b;
+      --pending: #f0a850; --pending-bg: #3a2a12;
+      --done: #5fcf9f; --done-bg: #12342a;
+      --bad: #f08a80; --bad-bg: #3b1a17;
+      --accent: #e8e6df;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 28px 18px 48px; }
+  h1 { font: 600 1.6rem/1.2 ui-serif, Georgia, "Times New Roman", serif; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font: 600 1.05rem/1.3 ui-serif, Georgia, serif; margin: 0; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+
+  form { display: flex; gap: 8px; }
+  .field { position: relative; flex: 1; min-width: 0; }
+  input[type=text] {
+    width: 100%; font: 16px ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 13px 42px 13px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); color: var(--ink);
+  }
+  #wlabel { padding-right: 12px; font-family: inherit; }
+  button { font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+  #go { padding: 0 18px; border-radius: 8px; border: 0; background: var(--accent); color: var(--bg); }
+  #go:disabled { opacity: .5; }
+  button.icon {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px; border: 0; background: transparent; color: var(--muted);
+    font-size: 24px; line-height: 1; border-radius: 8px;
+  }
+  button.mini, a.mini {
+    font: 600 13px/1 inherit; font-family: inherit; text-decoration: none;
+    padding: 8px 12px; border-radius: 7px; border: 1px solid var(--line);
+    background: transparent; color: var(--ink); white-space: nowrap; display: inline-block;
+  }
+  :focus-visible { outline: 3px solid var(--pending); outline-offset: 2px; }
+
+  #msg { margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: var(--bad-bg); color: var(--bad); }
+  #result { margin-top: 22px; }
+  #back { display: inline-block; margin-bottom: 10px; color: var(--muted); font-size: .9rem; }
+  .idrow { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .idrow .kind { color: var(--muted); font-size: .85rem; }
+  .idrow code { flex: 1 1 200px; min-width: 0; font: 12px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; color: var(--muted); }
+
+  .status { border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+  .status.pending { background: var(--pending-bg); color: var(--pending); }
+  .status.done { background: var(--done-bg); color: var(--done); }
+  .status .big { font: 600 1.5rem/1.2 ui-serif, Georgia, serif; }
+  .status .small, .status .note { margin-top: 6px; color: var(--ink); }
+  .status .note { font-size: .92rem; }
+  .pips { display: flex; gap: 5px; margin-top: 12px; }
+  .pips span { flex: 1; height: 6px; border-radius: 3px; background: currentColor; opacity: .22; }
+  .pips span.on { opacity: 1; }
+
+  .watchbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .watchbar .field { flex: 1; }
+  .watchbar .state { flex: 1; color: var(--muted); font-size: .9rem; }
+
+  dl { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .row { display: flex; justify-content: space-between; gap: 16px; padding: 11px 16px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; word-break: break-word; }
+
+  #txlist { margin-top: 18px; }
+  #txlist h2 { margin-bottom: 8px; }
+  .trow {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%;
+    text-align: left; padding: 11px 14px; margin-bottom: 6px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-weight: 400;
+  }
+  .trow .t1 { font-weight: 600; }
+  .trow .t1.p { color: var(--pending); }
+  .trow .t2 { color: var(--muted); font-size: .85rem; }
+  .trow .tr { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+  .trow .tr.in { color: var(--done); }
+
+  #outs { margin-top: 18px; }
+  #outs h2 { margin-bottom: 8px; }
+  .orow { display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px; margin-bottom: 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+  .orow.mine { border-color: var(--done); }
+  .orow .oa { min-width: 0; }
+  .orow .oaddr { font: 12.5px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; }
+  .orow .otag { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+  .orow.mine .otag { color: var(--done); }
+  .orow .oamt { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
+  .foot { margin-top: 14px; color: var(--muted); font-size: .85rem; }
+
+  #watch { margin-top: 32px; }
+  .whead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .witem { display: flex; gap: 6px; margin-bottom: 6px; }
+  .wmain {
+    flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    text-align: left; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); font-weight: 400;
+  }
+  .wl { min-width: 0; }
+  .wl .w1 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wl .w2 { color: var(--muted); font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
+  .chip { font-size: .85rem; font-weight: 600; text-align: right; color: var(--muted); }
+  .chip.pending { color: var(--pending); }
+  .chip.done { color: var(--done); }
+  .wx { width: 44px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 20px; }
+  #wnote { color: var(--muted); font-size: .8rem; margin-top: 8px; }
+  .ver { margin-top: 28px; color: var(--muted); font-size: .78rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bitcoin checker</h1>
+  <p class="sub">Paste a transaction ID or a wallet address.</p>
+
+  <form id="f" autocomplete="off">
+    <div class="field">
+      <input id="txid" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
+             placeholder="Transaction ID or address" aria-label="Transaction ID or Bitcoin address">
+      <button id="clr" class="icon" type="button" aria-label="Clear" hidden>&times;</button>
+    </div>
+    <button id="go" type="submit">Check</button>
+  </form>
+
+  <div id="msg" role="alert" hidden></div>
+
+  <section id="result" aria-live="polite" hidden>
+    <a href="#" id="back" hidden>&larr; Back to address</a>
+    <div class="idrow">
+      <span class="kind" id="kind"></span>
+      <code id="idText"></code>
+      <button class="mini" id="copyBtn" type="button">Copy</button>
+      <a class="mini" id="ext" target="_blank" rel="noopener noreferrer">Open in mempool.space</a>
+    </div>
+    <div id="status" class="status">
+      <div class="big" id="sBig"></div>
+      <div class="small" id="sSmall"></div>
+      <div class="pips" id="pips" hidden><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="note" id="sNote" hidden></div>
+    </div>
+    <div class="watchbar" id="watchbar">
+      <div class="field" id="wfield"><input id="wlabel" type="text" maxlength="40" placeholder="Label (optional)" aria-label="Watchlist label"></div>
+      <span class="state" id="wstate" hidden>On your watchlist</span>
+      <button class="mini" id="wbtn" type="button">Watch</button>
+    </div>
+    <dl id="rows"></dl>
+    <div id="outs" hidden><h2>Outputs</h2><div id="outitems"></div></div>
+    <div id="txlist" hidden><h2>Recent transactions</h2><div id="txitems"></div></div>
+    <p class="foot" id="foot"></p>
+  </section>
+
+  <section id="watch" hidden>
+    <div class="whead"><h2>Watchlist</h2><button class="mini" id="wrefresh" type="button">Refresh</button></div>
+    <div id="witems"></div>
+    <p id="wnote"></p>
+  </section>
+
+  <p class="ver">v0.2.1</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var APIS = [
+    { name: 'mempool.space', base: 'https://mempool.space/api', web: 'https://mempool.space' },
+    { name: 'blockstream.info', base: 'https://blockstream.info/api', web: 'https://blockstream.info' }
+  ];
+  var REFRESH_MS = 30000, WATCH_MS = 60000, MAX_WATCH = 25, FINAL_CONF = 6, KEEP_MS = 7 * 86400000;
+  var KEY = 'btcwatch.v1', DEFTITLE = 'Bitcoin checker';
+  var TX_RE = /^[0-9a-f]{64}$/;
+  var B58_RE = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+  var BECH_RE = /^bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{20,100}$/;
+
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  /* ---------- input detection ---------- */
+  function classify(raw) {
+    var s = (raw || '').trim(), l = s.toLowerCase();
+    if (TX_RE.test(l)) return { kind: 'tx', id: l };
+    if (B58_RE.test(s)) return { kind: 'address', id: s };
+    if ((s === l || s === s.toUpperCase()) && BECH_RE.test(l)) return { kind: 'address', id: l };
+    return null;
+  }
+
+  /* ---------- formatting ---------- */
+  function fmtTime(sec) { return new Date(sec * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); }
+  function fmtNum(n) { return n.toLocaleString(); }
+  function fmtBtc(s, signed) {
+    var a = Math.abs(s);
+    var t = (a / 1e8).toFixed(8).replace(/0+$/, '').replace(/\.$/, '.0');
+    return (s < 0 ? '\u2212' : (signed && s > 0 ? '+' : '')) + t + ' BTC';
+  }
+  function short(id) { return id.length > 18 ? id.slice(0, 8) + '\u2026' + id.slice(-6) : id; }
+
+  /* ---------- network ---------- */
+  function getJSON(url) {
+    return fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (r.status === 404) { var e = new Error('not found'); e.notFound = true; throw e; }
+      if (r.status === 400) { var b = new Error('bad request'); b.badRequest = true; throw b; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  function getText(url) {
+    return fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    });
+  }
+  var tipCache = {};
+  async function getTip(api) {
+    var c = tipCache[api.name], now = Date.now();
+    if (c && now - c.t < 20000) return c.h;
+    var h = parseInt(await getText(api.base + '/blocks/tip/height'), 10);
+    if (!isFinite(h)) throw new Error('bad tip');
+    tipCache[api.name] = { t: now, h: h };
+    return h;
+  }
+  async function tryApis(fn) {
+    var lastErr = null, soft = 0;
+    for (var i = 0; i < APIS.length; i++) {
+      try { return await fn(APIS[i]); }
+      catch (e) { if (e.notFound || e.badRequest) soft++; lastErr = e; }
+    }
+    if (soft === APIS.length) throw lastErr;
+    throw lastErr || new Error('Lookup failed');
+  }
+  function lookupTx(txid) {
+    return tryApis(async function (api) {
+      var tx = await getJSON(api.base + '/tx/' + txid);
+      var tip = await getTip(api);
+      var blocks = null;
+      if (api.name === 'mempool.space' && !tx.status.confirmed) {
+        try { blocks = await getJSON(api.base + '/v1/fees/mempool-blocks'); } catch (e) {}
+      }
+      return { api: api, tx: tx, tip: tip, blocks: blocks };
+    });
+  }
+  function lookupAddr(addr) {
+    return tryApis(async function (api) {
+      var info = await getJSON(api.base + '/address/' + addr);
+      var txs = await getJSON(api.base + '/address/' + addr + '/txs');
+      var tip = await getTip(api);
+      return { api: api, info: info, txs: txs, tip: tip };
+    });
+  }
+  /* light status check used by the watchlist */
+  async function peek(item) {
+    var soft = 0;
+    for (var i = 0; i < APIS.length; i++) {
+      var api = APIS[i];
+      try {
+        if (item.type === 'tx') {
+          var tx = await getJSON(api.base + '/tx/' + item.id);
+          if (!tx.status.confirmed) return { state: 'pending' };
+          var tip = await getTip(api);
+          return { state: 'confirmed', conf: Math.max(1, tip - tx.status.block_height + 1) };
+        }
+        var a = await getJSON(api.base + '/address/' + item.id);
+        var pend = a.mempool_stats.funded_txo_sum - a.mempool_stats.spent_txo_sum;
+        return {
+          state: a.mempool_stats.tx_count > 0 ? 'pending' : 'ok',
+          bal: a.chain_stats.funded_txo_sum - a.chain_stats.spent_txo_sum, pend: pend
+        };
+      } catch (e) { if (e.notFound) soft++; }
+    }
+    return { state: soft === APIS.length ? 'missing' : 'unknown' };
+  }
+
+  /* ---------- alerts ---------- */
+  var actx = null;
+  function unlockAudio() {
+    try {
+      if (!actx) { var C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
+      if (actx && actx.state === 'suspended') actx.resume();
+    } catch (e) {}
+  }
+  function chime() {
+    try {
+      unlockAudio();
+      if (actx) {
+        var t = actx.currentTime;
+        [660, 880].forEach(function (f, i) {
+          var o = actx.createOscillator(), g = actx.createGain(), s = t + i * 0.18;
+          o.frequency.value = f; o.connect(g); g.connect(actx.destination);
+          g.gain.setValueAtTime(0.0001, s);
+          g.gain.exponentialRampToValueAtTime(0.2, s + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, s + 0.16);
+          o.start(s); o.stop(s + 0.18);
+        });
+      }
+      if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+    } catch (e) {}
+  }
+  function resetTitle() { document.title = DEFTITLE; }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) resetTitle(); });
+
+  /* ---------- watchlist storage ---------- */
+  var storageOK = true;
+  function validItem(it) {
+    return it && (it.type === 'tx' || it.type === 'address') && typeof it.id === 'string' && classify(it.id);
+  }
+  function loadW() {
+    try {
+      var v = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return Array.isArray(v) ? v.filter(validItem).slice(0, MAX_WATCH) : [];
+    } catch (e) { storageOK = false; return []; }
+  }
+  var watch = loadW();
+  function saveW() {
+    try { localStorage.setItem(KEY, JSON.stringify(watch)); storageOK = true; } catch (e) { storageOK = false; }
+  }
+  function findW(id) { for (var i = 0; i < watch.length; i++) if (watch[i].id === id) return watch[i]; return null; }
+  function markDone(it) {
+    if (it.type === 'tx' && it.last && it.last.state === 'confirmed' && it.last.conf >= FINAL_CONF && !it.doneAt) it.doneAt = Date.now();
+  }
+  function prune() {
+    var n = watch.length, now = Date.now();
+    watch = watch.filter(function (it) { return !(it.doneAt && now - it.doneAt > KEEP_MS); });
+    if (watch.length !== n) saveW();
+  }
+
+  /* ---------- state ---------- */
+  var cur = null, timer = null, prevPending = null, backAddr = null, curLast = null;
+
+  function showError(t) { var m = $('msg'); m.textContent = t; m.hidden = false; }
+  function clearError() { $('msg').hidden = true; }
+  function hideResult() { $('result').hidden = true; }
+
+  /* ---------- rendering: shared ---------- */
+  function setRows(rows) {
+    var dl = $('rows'); dl.textContent = '';
+    rows.forEach(function (r) {
+      var d = el('div', 'row');
+      d.appendChild(el('dt', null, r[0])); d.appendChild(el('dd', null, r[1]));
+      dl.appendChild(d);
+    });
+  }
+  function setPips(n, show) {
+    var box = $('pips'); box.hidden = !show;
+    var s = box.children;
+    for (var i = 0; i < s.length; i++) s[i].className = i < n ? 'on' : '';
+  }
+  function setHeader(c) {
+    $('kind').textContent = c.kind === 'tx' ? 'Transaction' : 'Address';
+    $('idText').textContent = c.id;
+    var api = APIS[0];
+    $('ext').href = api.web + (c.kind === 'tx' ? '/tx/' : '/address/') + c.id;
+    $('back').hidden = !backAddr;
+    $('result').hidden = false;
+  }
+  function updateWatchBar() {
+    var on = cur && findW(cur.id);
+    $('wfield').hidden = !!on;
+    $('wstate').hidden = !on;
+    $('wbtn').textContent = on ? 'Stop watching' : 'Watch';
+  }
+  function setNote(text) { var n = $('sNote'); n.hidden = !text; n.textContent = text || ''; }
+
+  function eta(rate, blocks) {
+    if (!blocks || !blocks.length) return null;
+    for (var i = 0; i < blocks.length; i++) {
+      var lo = blocks[i].feeRange && blocks[i].feeRange[0];
+      if (lo !== undefined && rate >= lo) return { n: i + 1 };
+    }
+    return { beyond: blocks.length };
+  }
+  function checkedLine(res, pending) {
+    var now = new Date().toLocaleTimeString(undefined, { timeStyle: 'short' });
+    return 'Data from ' + res.api.name + ', checked ' + now +
+      (pending ? '. Refreshes every 30 seconds while pending.' : '.');
+  }
+
+  /* ---------- outputs ---------- */
+  function analyzeOutputs(tx) {
+    var ins = {};
+    tx.vin.forEach(function (v) {
+      if (v.prevout && v.prevout.scriptpubkey_address) ins[v.prevout.scriptpubkey_address] = true;
+    });
+    var outs = tx.vout.map(function (o) {
+      var a = o.scriptpubkey_address || null;
+      return { addr: a, value: o.value, type: o.scriptpubkey_type, change: !!(a && ins[a]) };
+    });
+    var changeCount = 0, paid = 0;
+    outs.forEach(function (o) { if (o.change) changeCount++; else paid += o.value; });
+    return { outs: outs, changeCount: changeCount, paid: paid };
+  }
+  function renderOutputs(an) {
+    var box = $('outitems'); box.textContent = '';
+    an.outs.forEach(function (o) {
+      var tag = '', mine = false;
+      if (o.addr && backAddr && o.addr === backAddr) { tag = 'The address you were viewing'; mine = true; }
+      else if (o.addr && findW(o.addr)) { tag = 'On your watchlist'; mine = true; }
+      else if (o.change) tag = 'Change (probably), back to an address that funded this transaction';
+      else if (an.changeCount > 0) { tag = 'Payment'; mine = true; }
+      var row = el('div', 'orow' + (mine ? ' mine' : ''));
+      var left = el('div', 'oa');
+      left.appendChild(el('div', 'oaddr', o.addr || (o.type === 'op_return' ? 'Data (OP_RETURN)' : 'Non-standard output')));
+      if (tag) left.appendChild(el('div', 'otag', tag));
+      row.appendChild(left);
+      row.appendChild(el('div', 'oamt', fmtBtc(o.value)));
+      box.appendChild(row);
+    });
+    $('outs').hidden = an.outs.length === 0;
+  }
+
+  /* ---------- rendering: transaction ---------- */
+  function renderTx(res) {
+    var tx = res.tx, st = tx.status;
+    var vsize = Math.ceil(tx.weight / 4), rate = tx.fee / vsize;
+    var out = tx.vout.reduce(function (s, o) { return s + o.value; }, 0);
+    var box = $('status'), rows = [], pending = !st.confirmed, conf = 0;
+    setHeader(cur);
+    $('txlist').hidden = true;
+
+    if (!pending) {
+      conf = Math.max(1, res.tip - st.block_height + 1);
+      box.className = 'status done';
+      $('sBig').textContent = 'Confirmed';
+      $('sSmall').textContent = conf >= FINAL_CONF
+        ? fmtNum(conf) + ' confirmations. Generally considered final.'
+        : conf + ' of ' + FINAL_CONF + ' confirmations. Wait for ' + FINAL_CONF + ' on larger amounts.';
+      setPips(conf, true); setNote('');
+      rows.push(['Confirmations', fmtNum(conf)]);
+      rows.push(['Block', '#' + st.block_height]);
+      if (st.block_time) rows.push(['Confirmed at', fmtTime(st.block_time)]);
+      curLast = { state: 'confirmed', conf: conf };
+    } else {
+      box.className = 'status pending';
+      $('sBig').textContent = 'Not confirmed yet';
+      var e = eta(rate, res.blocks);
+      var rbf = tx.vin.some(function (v) { return v.sequence < 0xfffffffe; });
+      var line = 'Waiting in the mempool.';
+      var note = '';
+      if (e && e.n) line += ' At this fee rate it should land in about ' + (e.n * 10) + ' minutes (projected block ' + e.n + ').';
+      else if (e && e.beyond) {
+        line += ' This fee rate is below the next ' + e.beyond + ' projected blocks, so expect a long wait.';
+        note = rbf
+          ? 'If your wallet supports it, you can raise the fee (RBF) to speed this up.'
+          : 'This transaction is not marked replaceable. Whoever receives an output, or you if you control one, can speed it up with a child-pays-for-parent (CPFP) transaction.';
+      }
+      $('sSmall').textContent = line;
+      setPips(0, true); setNote(note);
+      rows.push(['Confirmations', '0']);
+      rows.push(['Replaceable (RBF)', rbf ? 'Yes' : 'No']);
+      curLast = { state: 'pending' };
+    }
+    var an = analyzeOutputs(tx);
+    if (an.changeCount > 0 && an.paid > 0) rows.push(['Amount sent', fmtBtc(an.paid)]);
+    else rows.push(['Total output', fmtBtc(out)]);
+    rows.push(['Fee rate', rate.toFixed(1) + ' sat/vB']);
+    rows.push(['Fee paid', fmtNum(tx.fee) + ' sats']);
+    rows.push(['Size', fmtNum(vsize) + ' vB']);
+    rows.push(['Inputs / outputs', tx.vin.length + ' / ' + tx.vout.length]);
+    setRows(rows);
+    renderOutputs(an);
+    $('foot').textContent = checkedLine(res, pending);
+    return pending;
+  }
+
+  /* ---------- rendering: address ---------- */
+  function netFor(tx, addr) {
+    var n = 0;
+    tx.vout.forEach(function (o) { if (o.scriptpubkey_address === addr) n += o.value; });
+    tx.vin.forEach(function (v) { if (v.prevout && v.prevout.scriptpubkey_address === addr) n -= v.prevout.value; });
+    return n;
+  }
+  function renderAddr(res) {
+    var addr = cur.id, i = res.info, c = i.chain_stats, m = i.mempool_stats;
+    var bal = c.funded_txo_sum - c.spent_txo_sum;
+    var pend = m.funded_txo_sum - m.spent_txo_sum;
+    var pending = m.tx_count > 0;
+    var box = $('status');
+    setHeader(cur);
+    $('outs').hidden = true;
+    box.className = 'status ' + (pending ? 'pending' : 'done');
+    $('sBig').textContent = fmtBtc(bal);
+    $('sSmall').textContent = pending
+      ? m.tx_count + (m.tx_count === 1 ? ' pending transaction' : ' pending transactions') + ', net ' + fmtBtc(pend, true) + ' once confirmed.'
+      : 'Confirmed balance. No pending transactions.';
+    setPips(0, false); setNote('');
+    var rows = [];
+    if (pending) rows.push(['Pending (net)', fmtBtc(pend, true)]);
+    rows.push(['Total received', fmtBtc(c.funded_txo_sum)]);
+    rows.push(['Transactions', fmtNum(c.tx_count + m.tx_count)]);
+    setRows(rows);
+
+    var list = $('txitems'); list.textContent = '';
+    res.txs.forEach(function (tx) {
+      var b = el('button', 'trow'); b.type = 'button';
+      var left = el('div', 'tl');
+      var conf = tx.status.confirmed ? Math.max(1, res.tip - tx.status.block_height + 1) : 0;
+      left.appendChild(el('div', 't1' + (conf ? '' : ' p'), conf ? fmtNum(conf) + (conf === 1 ? ' confirmation' : ' confirmations') : 'Pending'));
+      left.appendChild(el('div', 't2', conf && tx.status.block_time ? fmtTime(tx.status.block_time) : short(tx.txid)));
+      var net = netFor(tx, addr);
+      b.appendChild(left); b.appendChild(el('div', 'tr ' + (net > 0 ? 'in' : ''), fmtBtc(net, true)));
+      b.addEventListener('click', function () { start(tx.txid, addr); });
+      list.appendChild(b);
+    });
+    $('txlist').hidden = res.txs.length === 0;
+
+    var total = c.tx_count + m.tx_count;
+    var foot = checkedLine(res, pending);
+    if (total > res.txs.length) foot = 'Showing the latest ' + res.txs.length + ' of ' + fmtNum(total) + ' transactions. ' + foot;
+    $('foot').textContent = foot;
+    curLast = { state: pending ? 'pending' : 'ok', bal: bal, pend: pend };
+    return pending;
+  }
+
+  /* ---------- main flow ---------- */
+  function start(raw, back) {
+    clearTimeout(timer); clearError(); resetTitle();
+    var c = classify(raw);
+    if (!c) {
+      cur = null; hideResult();
+      showError('Enter a 64-character transaction ID or a Bitcoin address (starts with 1, 3 or bc1).');
+      return;
+    }
+    unlockAudio();
+    $('txid').value = c.id; syncClear();
+    cur = c; prevPending = null; backAddr = back || null; curLast = null;
+    $('wlabel').value = '';
+    try { history.replaceState(null, '', '#' + c.id); } catch (e) {}
+    run(c, false);
+  }
+
+  async function run(c, quiet) {
+    $('go').disabled = true;
+    try {
+      var res = c.kind === 'tx' ? await lookupTx(c.id) : await lookupAddr(c.id);
+      if (!cur || cur.id !== c.id) return;
+      var pending = c.kind === 'tx' ? renderTx(res) : renderAddr(res);
+      updateWatchBar();
+      syncWatch();
+      if (prevPending === true && !pending) {
+        chime();
+        document.title = (c.kind === 'tx' ? '\u2713 Confirmed' : '\u2713 No longer pending') + ' \u2013 ' + DEFTITLE;
+      }
+      prevPending = pending;
+      clearTimeout(timer);
+      if (pending) timer = setTimeout(function () { run(c, true); }, REFRESH_MS);
+    } catch (e) {
+      if (!cur || cur.id !== c.id) return;
+      if (!quiet) hideResult();
+      clearTimeout(timer);
+      if (e.notFound) showError(c.kind === 'tx'
+        ? 'No transaction found with that ID. Check for a missing character, or it may not have been broadcast yet.'
+        : 'No record of that address was found.');
+      else if (e.badRequest) showError('The explorer rejected that ' + (c.kind === 'tx' ? 'transaction ID' : 'address') + '. Check it for typos.');
+      else showError('Could not reach the block explorers. Check your connection and try again.');
+    } finally {
+      if (cur && cur.id === c.id) $('go').disabled = false;
+    }
+  }
+
+  function clearAll() {
+    clearTimeout(timer); cur = null; prevPending = null; backAddr = null; curLast = null;
+    $('txid').value = ''; syncClear(); clearError(); hideResult(); resetTitle();
+    $('go').disabled = false;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  }
+  function syncClear() { $('clr').hidden = !$('txid').value; }
+
+  /* ---------- watchlist: actions ---------- */
+  function syncWatch() {
+    if (!cur || !curLast) return;
+    var it = findW(cur.id);
+    if (!it) return;
+    it.last = curLast; markDone(it); saveW(); renderWatch();
+  }
+  function addW() {
+    if (!cur || findW(cur.id)) return;
+    if (watch.length >= MAX_WATCH) { showError('Watchlist is full (' + MAX_WATCH + '). Remove one first.'); return; }
+    var it = { type: cur.kind, id: cur.id, label: $('wlabel').value.trim().slice(0, 40), added: Date.now(), last: curLast };
+    markDone(it);
+    watch.push(it); saveW(); renderWatch(); updateWatchBar();
+  }
+  function removeW(id) {
+    watch = watch.filter(function (it) { return it.id !== id; });
+    saveW(); renderWatch(); updateWatchBar();
+  }
+  function chipText(it) {
+    var l = it.last;
+    if (!l) return 'Checking\u2026';
+    if (l.state === 'pending') return it.type === 'tx' ? 'Pending' : 'Pending activity';
+    if (l.state === 'confirmed') return l.conf >= FINAL_CONF ? 'Confirmed' : l.conf + (l.conf === 1 ? ' confirmation' : ' confirmations');
+    if (l.state === 'ok') return fmtBtc(l.bal);
+    if (l.state === 'missing') return 'Not found';
+    return 'Unavailable';
+  }
+  function chipClass(it) {
+    var s = it.last && it.last.state;
+    return 'chip' + (s === 'pending' ? ' pending' : (s === 'confirmed' || s === 'ok') ? ' done' : '');
+  }
+  function renderWatch() {
+    var box = $('witems'); box.textContent = '';
+    $('watch').hidden = watch.length === 0;
+    watch.forEach(function (it) {
+      var row = el('div', 'witem');
+      var main = el('button', 'wmain'); main.type = 'button';
+      var wl = el('div', 'wl');
+      wl.appendChild(el('div', 'w1', it.label || (it.type === 'tx' ? 'Transaction ' : 'Address ') + short(it.id)));
+      if (it.label) wl.appendChild(el('div', 'w2', short(it.id)));
+      main.appendChild(wl); main.appendChild(el('div', chipClass(it), chipText(it)));
+      main.addEventListener('click', function () { start(it.id); window.scrollTo(0, 0); });
+      var x = el('button', 'wx', '\u00d7'); x.type = 'button'; x.setAttribute('aria-label', 'Remove from watchlist');
+      x.addEventListener('click', function () { removeW(it.id); });
+      row.appendChild(main); row.appendChild(x); box.appendChild(row);
+    });
+    var note = [];
+    if (watch.length) note.push('Saved on this device only. Confirmed transactions drop off 7 days after reaching ' + FINAL_CONF + ' confirmations.');
+    if (!storageOK) note.push('This browser is blocking saved lists, so the watchlist will be lost when you close the page.');
+    $('wnote').textContent = note.join(' ');
+  }
+  var wbusy = false;
+  async function refreshWatch() {
+    if (wbusy) return;
+    wbusy = true;
+    try {
+      prune();
+      var todo = watch.filter(function (it) {
+        return !(it.type === 'tx' && it.last && it.last.state === 'confirmed' && it.last.conf >= FINAL_CONF);
+      });
+      var alerts = 0;
+      for (var i = 0; i < todo.length; i += 4) {
+        await Promise.all(todo.slice(i, i + 4).map(async function (it) {
+          var prev = it.last, now = await peek(it);
+          if (now.state === 'unknown' && prev) return;
+          it.last = now; markDone(it);
+          var fine = now.state === 'confirmed' || now.state === 'ok';
+          if (prev && prev.state === 'pending' && fine && !(cur && cur.id === it.id)) alerts++;
+        }));
+      }
+      saveW(); renderWatch();
+      if (alerts) { chime(); document.title = '\u2713 Watchlist update \u2013 ' + DEFTITLE; }
+    } finally { wbusy = false; }
+  }
+
+  /* ---------- copy ---------- */
+  function copyText(t, btn) {
+    function ok() { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1200); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); ok(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, fallback);
+    else fallback();
+  }
+
+  /* ---------- wiring ---------- */
+  $('f').addEventListener('submit', function (ev) { ev.preventDefault(); start($('txid').value); });
+  $('txid').addEventListener('input', syncClear);
+  $('txid').addEventListener('focus', function () { var t = this; setTimeout(function () { t.select(); }, 0); });
+  $('clr').addEventListener('click', function () { clearAll(); $('txid').focus(); });
+  $('copyBtn').addEventListener('click', function () { if (cur) copyText(cur.id, this); });
+  $('back').addEventListener('click', function (ev) { ev.preventDefault(); if (backAddr) start(backAddr); });
+  $('wbtn').addEventListener('click', function () { if (cur && findW(cur.id)) removeW(cur.id); else addW(); });
+  $('wrefresh').addEventListener('click', function () { unlockAudio(); refreshWatch(); });
+  setInterval(function () { if (!document.hidden) refreshWatch(); }, WATCH_MS);
+
+  renderWatch();
+  refreshWatch();
+  var fromUrl = (location.hash || '').replace(/^#/, '') || new URLSearchParams(location.search).get('tx');
+  if (fromUrl) start(fromUrl);
+})();
+</script>
+</body>
+</html>

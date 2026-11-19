@@ -1,4 +1,4 @@
-/* chains.js (Chainwolf v0.4.3)
+/* chains.js (Chainwolf v0.4.4)
    One adapter per network. Every lookup returns a "view" object the page renders,
    so app.js never needs to know how a given chain works. */
 (function (root) {
@@ -335,7 +335,7 @@
     return {
       pending: false, big: fmt(res[0], 18, 'ETH'), small: 'Balance. Token balances below.', rows: rows, txs: [],
       source: 'Ethereum public node',
-      note: code && code !== '0x' ? 'This address is a smart contract, not a personal wallet. The balances are what the contract itself holds.' : '',
+      note: code && code !== '0x' && !/^0xef0100[0-9a-f]{40}$/i.test(code) ? 'This address is a smart contract, not a personal wallet. The balances are what the contract itself holds.' : '',
       footNote: 'Transaction history for Ethereum addresses needs a paid indexer, so only balances are shown. Paste a transaction ID to check a payment.'
     };
   }

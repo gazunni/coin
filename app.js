@@ -1,4 +1,4 @@
-/* app.js (Chainwolf v0.4.5): page logic. Network specifics live in chains.js. */
+/* app.js (Chainwolf v0.4.6): page logic. Network specifics live in chains.js. */
 (function () {
   'use strict';
   var C = window.Chains;
@@ -291,6 +291,7 @@
   async function run(c, quiet) {
     var net = C.byId[c.net];
     $('go').disabled = true;
+    C.clearFailures();
     try {
       var v = c.kind === 'tx' ? await net.lookupTx(c.id) : await net.lookupAddr(c.id);
       if (!cur || cur.id !== c.id || cur.net !== c.net) return;
@@ -316,7 +317,7 @@
             : ' Check for a missing character, or it may not have been broadcast yet.'));
         } else showError('No record of that address on ' + net.name + '.');
       } else if (e.badRequest) showError('The ' + net.name + ' data source rejected that ' + (c.kind === 'tx' ? 'transaction ID' : 'address') + '. Check it for typos.');
-      else showError('Could not reach the ' + net.name + ' data sources. Check your connection and try again. If it keeps failing for this network only, the source may be blocking the page.');
+      else showError('Could not reach the ' + net.name + ' data sources. Check your connection and try again. If it keeps failing for this network only, the source may be blocking the page.' + (C.failures() ? ' Technical detail: ' + C.failures() + '.' : ''));
     } finally {
       if (cur && cur.id === c.id && cur.net === c.net) $('go').disabled = false;
     }
@@ -431,6 +432,7 @@
   $('copyBtn').addEventListener('click', function () { if (cur) copyText(cur.id, this); });
   $('back').addEventListener('click', function (ev) { ev.preventDefault(); if (backAddr && cur) start(backAddr, null, cur.net); });
   $('wbtn').addEventListener('click', function () { if (cur && findW(cur.net, cur.id)) removeW(cur.net, cur.id); else addW(); });
+  document.addEventListener('securitypolicyviolation', function (ev) { C.noteFail(ev.blockedURI, 'blocked by this page\'s security rules'); });
   $('curBtn').addEventListener('click', function () {
     fiat = eff() === 'CAD' ? 'USD' : 'CAD';
     try { localStorage.setItem(CUR_KEY, fiat); } catch (e) { /* storage blocked: the choice just is not remembered */ }

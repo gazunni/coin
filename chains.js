@@ -1,4 +1,4 @@
-/* chains.js (Chainwolf v0.4.5)
+/* chains.js (Chainwolf v0.4.6)
    One adapter per network. Every lookup returns a "view" object the page renders,
    so app.js never needs to know how a given chain works. */
 (function (root) {
@@ -35,16 +35,28 @@
   function NF() { var e = new Error('not found'); e.notFound = true; return e; }
   function BR() { var e = new Error('bad request'); e.badRequest = true; return e; }
 
+  /* Failure notes: the page shows these under a generic "could not reach" error, so a blocked or refused source can be told apart. */
+  var FAILS = [];
+  function noteFail(url, why) {
+    var host = String(url || 'unknown').replace(/^[a-z]+:\/\//i, '').split('/')[0];
+    var line = host + ' (' + why + ')';
+    if (FAILS.indexOf(line) === -1 && FAILS.length < 6) FAILS.push(line);
+  }
   async function httpJSON(url, opts) {
-    var r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    var r;
+    try { r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {})); }
+    catch (e) { noteFail(url, 'no response'); throw e; }
     if (r.status === 404) throw NF();
     if (r.status === 400) throw BR();
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
+    if (!r.ok) { noteFail(url, 'HTTP ' + r.status); throw new Error('HTTP ' + r.status); }
+    try { return await r.json(); }
+    catch (e) { noteFail(url, 'unreadable reply'); throw e; }
   }
   async function httpText(url) {
-    var r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var r;
+    try { r = await fetch(url, { cache: 'no-store' }); }
+    catch (e) { noteFail(url, 'no response'); throw e; }
+    if (!r.ok) { noteFail(url, 'HTTP ' + r.status); throw new Error('HTTP ' + r.status); }
     return r.text();
   }
   function postJSON(url, body) {
@@ -684,7 +696,7 @@
     } catch (e) { return { state: e.notFound ? 'missing' : 'unknown' }; }
   }
 
-  var api = { NETS: NETS, byId: byId, detect: detect, peek: peek, fmt: fmt, short: short, _b58: { enc: b58enc, decHex: b58decHex, hexToB58Check: hexToB58Check, hexToBytes: hexToBytes } };
+  var api = { noteFail: noteFail, failures: function () { return FAILS.join('; '); }, clearFailures: function () { FAILS.length = 0; }, NETS: NETS, byId: byId, detect: detect, peek: peek, fmt: fmt, short: short, _b58: { enc: b58enc, decHex: b58decHex, hexToB58Check: hexToB58Check, hexToBytes: hexToBytes } };
   root.Chains = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

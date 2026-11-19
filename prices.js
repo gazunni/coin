@@ -1,4 +1,4 @@
-/* prices.js (Chainwolf v0.4.5): fetches prices from your own price Worker and turns amounts into fiat values. */
+/* prices.js (Chainwolf v0.4.6): fetches prices from your own price Worker and turns amounts into fiat values. */
 (function (root) {
   'use strict';
   var REFRESH_MS = 60000, STALE_MS = 300000;

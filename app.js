@@ -1,4 +1,4 @@
-/* app.js (Chainwolf v0.4.4): page logic. Network specifics live in chains.js. */
+/* app.js (Chainwolf v0.4.5): page logic. Network specifics live in chains.js. */
 (function () {
   'use strict';
   var C = window.Chains;

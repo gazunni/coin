@@ -1,4 +1,4 @@
-/* chains.js (Chainwolf v0.4.4)
+/* chains.js (Chainwolf v0.4.5)
    One adapter per network. Every lookup returns a "view" object the page renders,
    so app.js never needs to know how a given chain works. */
 (function (root) {
@@ -386,13 +386,16 @@
   }
   async function solAddr(addr) {
     var mints = Object.keys(SOL_TOKENS);
+    var missing = false;
+    function soft(p) { return p.catch(function () { missing = true; return null; }); }
     var res = await Promise.all([
       solRpc('getBalance', [addr]),
-      solRpc('getSignaturesForAddress', [addr, { limit: 25 }])
-    ].concat(mints.map(function (m) { return solRpc('getTokenAccountsByOwner', [addr, { mint: m }, { encoding: 'jsonParsed' }]); })));
+      soft(solRpc('getSignaturesForAddress', [addr, { limit: 25 }]))
+    ].concat(mints.map(function (m) { return soft(solRpc('getTokenAccountsByOwner', [addr, { mint: m }, { encoding: 'jsonParsed' }])); })));
     var sigs = res[1] || [], pendN = 0, rows = [];
     mints.forEach(function (m, i) {
       var sum = 0n, dec = SOL_TOKENS[m].dec;
+      if (res[i + 2] === null) { rows.push([SOL_TOKENS[m].sym, 'Could not load']); return; }
       ((res[i + 2] && res[i + 2].value) || []).forEach(function (a) { sum += toBig(a.account.data.parsed.info.tokenAmount.amount); });
       rows.push([SOL_TOKENS[m].sym, fmt(sum, dec, SOL_TOKENS[m].sym)]);
     });
@@ -404,7 +407,9 @@
     });
     return {
       pending: pendN > 0, big: fmt((res[0] && res[0].value) || 0, 9, 'SOL'), small: pendN ? plural(pendN, 'transaction') + ' not yet finalized.' : 'Balance. Token balances below.',
-      rows: rows, txs: list, source: 'Solana public node', footNote: 'Amounts are not shown in this list. Tap a transaction to see them.'
+      rows: rows, txs: list, source: 'Solana public node',
+      note: missing ? 'The balance above is current, but the public Solana server would not return some details (token balances or recent transactions). This often happens with very busy wallets.' : '',
+      footNote: 'Amounts are not shown in this list. Tap a transaction to see them.'
     };
   }
 
